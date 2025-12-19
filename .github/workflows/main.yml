@@ -1,44 +1,77 @@
-name: Build Minimal FFmpeg Android
-on: workflow_dispatch
+name: Build Minimal FFmpeg Kit Android
+on:
+  workflow_dispatch:
 jobs:
-  build:
+  build-ffmpeg-android:
+    name: Build FFmpeg Android (NDK r25c)
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout ffmpeg-kit
         uses: actions/checkout@v4
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            autoconf automake build-essential cmake git libtool \
-            pkg-config texinfo yasm nasm gettext autopoint gperf \
-            bison flex curl
+            autoconf \
+            automake \
+            build-essential \
+            cmake \
+            git \
+            libtool \
+            pkg-config \
+            texinfo \
+            yasm \
+            nasm \
+            gettext \
+            autopoint \
+            gperf \
+            libssl-dev \
+            bison \
+            flex \
+            groff \
+            curl \
+            unzip
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: Setup Android NDK
+      - name: Setup Android NDK (r25c)
         uses: android-actions/setup-android@v3
-      
-      - name: Install Specific NDK
+        
+      - name: Install NDK r25c
         run: |
-          sdkmanager "ndk;27.0.12077973"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
-      - name: Build FFmpeg
+          # Uninstall potential conflicting CMake versions if present (optional but safe)
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --uninstall "cmake;3.10.2.4988404" "cmake;3.18.1" || true
+          
+          # Install NDK r25c (25.2.9519653) which is known to work with ffmpeg-kit 6.0
+          sdkmanager "ndk;25.2.9519653"
+          
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+      - name: Build Custom FFmpeg
         run: |
-          # Make sure scripts are executable
           chmod +x android.sh
           
-          # Run the build script
-          # --no-archive: prevents creating a zip of source code
-          # --lts: uses a Long Term Support version logic if applicable
-          ./android.sh --no-archive
+          # We export the 16KB alignment flag here as a safety measure, 
+          # though it's also in our custom ffmpeg.sh
+          export LDFLAGS="-Wl,-z,max-page-size=16384"
+          
+          # Build command
+          # --no-archive: Don't zip sources
+          # --lts: Use LTS support
+          # --disable-arm-v7a: Optional, if you ONLY want 64-bit (which is the future), but for compatibility keep it.
+          # Note: If 'cpu-features' still fails on arm-v7a, we might consider disabling 32-bit builds if your app is 64-bit only.
+          
+          ./android.sh --no-archive --lts
         env:
-          # Ensure 16KB alignment is forced if not in script
-          LDFLAGS: "-Wl,-z,max-page-size=16384"
+          # Ensure env vars are passed
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
       - name: Upload AAR
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: ffmpeg-kit-minimal.aar
           path: bundle-android-aar/*.aar
