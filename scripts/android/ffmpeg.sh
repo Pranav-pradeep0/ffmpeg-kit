@@ -74,9 +74,11 @@ MINIMAL_FLAGS="
     --disable-doc
     --disable-programs
     --disable-avdevice
-    --disable-swresample
+    --enable-swresample
     --disable-postproc
-    --disable-avfilter
+    --enable-avfilter
+    --disable-filters
+    --enable-swscale
     --disable-network
     
     --enable-protocol=file
