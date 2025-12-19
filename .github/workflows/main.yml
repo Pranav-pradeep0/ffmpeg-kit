@@ -2,84 +2,64 @@ name: Build Minimal FFmpeg Kit Android
 on:
   workflow_dispatch:
 jobs:
-  build-ffmpeg-android:
-    name: Build FFmpeg Android (NDK r25b)
-    runs-on: ubuntu-latest
+  build-minimal-ffmpeg:
+    name: Build Minimal FFmpeg (NDK r25)
+    runs-on: ubuntu-22.04
     defaults:
       run:
         shell: bash
     steps:
       - name: Checkout ffmpeg-kit
         uses: actions/checkout@v4
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            build-essential \
-            cmake \
-            git \
-            libtool \
-            pkg-config \
-            texinfo \
-            yasm \
-            nasm \
-            gettext \
-            autopoint \
-            gperf \
-            libssl-dev \
-            bison \
-            flex \
-            groff \
-            curl \
-            unzip
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: 'adopt'
           java-version: '17'
       - name: Clean Android SDK CMake
         run: |
-          # The original workflow removes these specific versions to avoid conflicts
-          # with system cmake or internal build script logic.
           if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
             $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --uninstall "cmake;3.10.2.4988404" "cmake;3.18.1"
           fi
-      - name: Setup Android NDK r25b
+      - name: Setup Android NDK r25 (Known Working Build)
         run: |
-          # Download NDK r25b specifically as recommended by the compatibility note
-          echo "Downloading NDK r25b..."
-          curl -s "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip" -o ndk.zip
-          
-          echo "Unzipping NDK..."
+          # Downloading the specific NDK r25 build known to work well with 16KB page size builds
+          curl -L -s "https://storage.googleapis.com/android-build/builds/aosp-ndk-release-r23-linux-linux/12186248/38c84da1ab0dd31ea40c857d2c9ee77450d9d71d76e60ac2ccd33d379babc534/android-ndk-12186248-linux-x86_64.zip?GoogleAccessId=gcs-sign%40android-builds-project.google.com.iam.gserviceaccount.com&Expires=1757434143&Signature=oK1FSeU9JpfoBkEqBZk%2FVmTH%2B1JJ09Dlv%2BsXblxpBTBq1kBA%2B42UPzbBpb%2BNy%2BIliEoWd2lO9Xbc92Lmzl1CiDyFwtzsxYE11nwUNNVWsjLvc0K0SO1%2F8j4p8b8eo5Zq5gc%2Bq7SamsrgelSUDSJfcYkDNR%2BE%2FyRpJgvtOqra%2FmEjw85pDrFMXFjZrSikYGjy%2Fl4E8TJRr%2BKh1BBkTEY5Oxvx3ia53LEzKE9bKKpFmFjZ9iXp%2BHh5ZSFPYZPrTMAeROSHlKARwvW35Bqgr%2FIyKHkSLKOk5%2FcbDud5iQwjuIB0l3MQTtkYr2TeDRh2BNzM82Z8MOwUfoncAI6nfj2%2Few%3D%3D" -o ndk.zip
           unzip -q -o ndk.zip -d .ndk
           
-          # Set Evironment Variables exactly as the original workflow
-          NDK_PATH=$(pwd)/.ndk/android-ndk-r25b
-          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          NDK_PATH=$(pwd)/.ndk/android-ndk-r25-beta4
+          # Note: The folder name inside zip might vary, we find it dynamically
+          REAL_NDK_PATH=$(find .ndk -maxdepth 1 -type d -name "android-ndk*")
           
-          echo "NDK Setup complete at $NDK_PATH"
+          echo "ANDROID_NDK_ROOT=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
       - name: Build Custom FFmpeg
         run: |
-          # Ensure scripts are executable
           chmod +x android.sh
           
-          # Force 16KB alignment 
+          # Force 16KB alignment
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
-          # Build command
-          # Using options similar to original but with our minimal goal
-          # --no-archive: Don't zip sources (saves time)
-          # --lts: Use LTS support (often more stable)
-          # --disable-arm-v7a: If you want to speed it up and don't need 32-bit (optional)
+          # Force API Level 26 to match your HaptiPlayer minSdkVersion
+          # This avoids the "cpu-features" build error on old API levels (16)
+          export API=26
           
+          # Minimal Build Command
+          # We DO NOT use --full or --enable-gpl because we want the minimal build 
+          # defined in your custom 'ffmpeg.sh' script.
+          # --lts: Use LTS support
+          # --no-archive: Speed up build
           ./android.sh --no-archive --lts
           
+      - name: Prepare Artifact
+        run: |
+          # Find the generated AAR
+          mkdir -p output
+          find prebuilt -name "*.aar" -exec cp {} output/ \;
+          ls -R output/
       - name: Upload AAR
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: ffmpeg-kit-minimal.aar
-          path: bundle-android-aar/*.aar
+          name: ffmpeg-kit-minimal-custom.aar
+          path: output/*.aar
