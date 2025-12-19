@@ -27,6 +27,7 @@ jobs:
           curl -s "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip" -o ndk.zip
           unzip -q -o ndk.zip -d .ndk
           
+          # Dynamic path finding to be safe
           REAL_NDK_PATH=$(find .ndk -maxdepth 1 -type d -name "android-ndk*")
           
           echo "ANDROID_NDK_ROOT=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
@@ -35,18 +36,31 @@ jobs:
         run: |
           chmod +x android.sh
           
-          # Patch strict API level to 24 (safe for NDK r25) in LTS function
-          echo "Patching scripts/function-android.sh..."
+          # --- PATCH 1: Fix API Level for NDK r25 ---
+          # NDK r25 removed API 16 support. 
+          # ffmpeg-kit's LTS mode forces API 16. We overwrite it to 24.
+          echo "Patching scripts/function-android.sh for API 24..."
           sed -i 's/export API=16/export API=24/g' scripts/function-android.sh
+          
+          # --- PATCH 2: Fix NEON Support for NDK r25 ---
+          # NDK r25 requires NEON for armeabi-v7a. 
+          # ffmpeg-kit's LTS mode explicitly disables NEON in Android.mk. We force it enabled.
+          echo "Patching android/jni/Android.mk for NEON support..."
+          sed -i 's/MY_ARM_NEON := false/MY_ARM_NEON := true/g' android/jni/Android.mk
           
           # Force 16KB alignment
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
           # Build Command
-          # - Pass --api-level=24 (redundant but safe)
-          # - Pass --disable-x86 and --disable-x86-64 as requested to save time
-          
-          ./android.sh --no-archive --lts --api-level=24 --disable-x86 --disable-x86-64
+          # - --disable-arm-v7a: Disable the legacy non-neon build (saves time/space, redundant with NDK r25 forcing NEON anyway)
+          # - --disable-x86/x86-64: User requested optimization
+          ./android.sh \
+            --no-archive \
+            --lts \
+            --api-level=24 \
+            --disable-x86 \
+            --disable-x86-64 \
+            --disable-arm-v7a
           
       - name: Print Build Log
         if: always()
