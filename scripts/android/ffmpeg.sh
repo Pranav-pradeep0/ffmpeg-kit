@@ -70,22 +70,24 @@ HIGH_PRIORITY_INCLUDES=""
 # If you want to keep external libraries (like zlib), uncomment specific lines.
 # Define minimal components
 MINIMAL_FLAGS="
-    --disable-everything
-    --disable-doc
-    --disable-programs
-    --disable-avdevice
-    --enable-swresample
-    --disable-postproc
-    --enable-avfilter
-    --disable-filters
-    --enable-swscale
-    --disable-network
+    --disable-doc \
+    --disable-everything \
+    --disable-programs \
+    --enable-avdevice \
+    --disable-indevs \
+    --disable-outdevs \
+    --enable-swresample \
+    --disable-postproc \
+    --enable-avfilter \
+    --disable-filters \
+    --enable-swscale \
+    --disable-network \
     
-    --enable-protocol=file
-    --enable-protocol=pipe
+    --enable-protocol=file \
+    # --enable-protocol=pipe \
     
-    --enable-ffmpeg
-    --enable-ffprobe
+    --enable-ffmpeg \
+    --enable-ffprobe \
     
     --enable-demuxer=matroska
     --enable-demuxer=mov
