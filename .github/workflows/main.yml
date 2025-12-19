@@ -27,7 +27,6 @@ jobs:
           curl -s "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip" -o ndk.zip
           unzip -q -o ndk.zip -d .ndk
           
-          # Dynamic path finding to be safe
           REAL_NDK_PATH=$(find .ndk -maxdepth 1 -type d -name "android-ndk*")
           
           echo "ANDROID_NDK_ROOT=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
@@ -36,23 +35,18 @@ jobs:
         run: |
           chmod +x android.sh
           
-          # Root Cause Fix:
-          # The 'enable_lts_build' function in scripts/function-android.sh hardcodes `export API=16`.
-          # This overrides our flags. NDK r25 removed API 16.
-          # We patch it to API 24 (safe for NDK r25 and your minSdkVersion).
-          
-          echo "Patching scripts/function-android.sh to use API 24..."
+          # Patch strict API level to 24 (safe for NDK r25) in LTS function
+          echo "Patching scripts/function-android.sh..."
           sed -i 's/export API=16/export API=24/g' scripts/function-android.sh
           
-          # Verify patch
-          grep "export API=24" scripts/function-android.sh || echo "Patch failed!"
-          
-          # Force 16KB alignment via LDFLAGS
+          # Force 16KB alignment
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
           # Build Command
-          # We still pass --api-level=24 just in case, but the sed patch is the real fixer.
-          ./android.sh --no-archive --lts --api-level=24
+          # - Pass --api-level=24 (redundant but safe)
+          # - Pass --disable-x86 and --disable-x86-64 as requested to save time
+          
+          ./android.sh --no-archive --lts --api-level=24 --disable-x86 --disable-x86-64
           
       - name: Print Build Log
         if: always()
