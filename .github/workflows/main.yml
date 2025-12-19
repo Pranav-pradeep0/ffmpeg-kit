@@ -23,14 +23,8 @@ jobs:
           fi
       - name: Setup Android NDK r25c (Standard)
         run: |
-          # The signed URL from the other repo failed. 
-          # We revert to the official standard NDK r25c download.
-          # Since we are fixing the API level below, this restart should work.
-          
           echo "Downloading Standard NDK r25c..."
           curl -s "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip" -o ndk.zip
-          
-          echo "Unzipping..."
           unzip -q -o ndk.zip -d .ndk
           
           # Dynamic path finding to be safe
@@ -38,8 +32,6 @@ jobs:
           
           echo "ANDROID_NDK_ROOT=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
-          
-          echo "NDK installed at: $PWD/$REAL_NDK_PATH"
       - name: Build Custom FFmpeg
         run: |
           chmod +x android.sh
@@ -47,15 +39,30 @@ jobs:
           # Force 16KB alignment
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
-          # CRITICAL FIX:
-          # The previous failure (cpu-features) was because NDK r25 doesn't support API 16.
-          # We force API 26 here. This allows the standard NDK r25c to work.
+          # Fix API level for NDK r25 compatibility
+          # However, note that "Building arm-v7a platform on API level 16" in your log 
+          # suggests the 'export API=26' might not have been picked up by the inner script 
+          # OR the script overrides it. 
+          # We'll try passing it as an argument or ensuring it persists.
           export API=26
           
           # Minimal Build Command
           ./android.sh --no-archive --lts
+      
+      # NEW: Always print build log to see why ffmpeg failed
+      - name: Print Build Log
+        if: always()
+        run: |
+          cat build.log || echo "build.log not found"
           
+      - name: Upload Build Log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-log
+          path: build.log
       - name: Prepare Artifact
+        if: success()
         run: |
           mkdir -p output
           find prebuilt -name "*.aar" -exec cp {} output/ \;
