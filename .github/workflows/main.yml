@@ -3,9 +3,11 @@ on:
   workflow_dispatch:
 jobs:
   build-ffmpeg-android:
-    name: Build FFmpeg Android (NDK r25c)
+    name: Build FFmpeg Android (NDK r25b)
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout ffmpeg-kit
         uses: actions/checkout@v4
@@ -37,38 +39,44 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: Setup Android NDK (r25c)
-        uses: android-actions/setup-android@v3
-        
-      - name: Install NDK r25c
+      - name: Clean Android SDK CMake
         run: |
-          # Uninstall potential conflicting CMake versions if present (optional but safe)
-          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --uninstall "cmake;3.10.2.4988404" "cmake;3.18.1" || true
+          # The original workflow removes these specific versions to avoid conflicts
+          # with system cmake or internal build script logic.
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --uninstall "cmake;3.10.2.4988404" "cmake;3.18.1"
+          fi
+      - name: Setup Android NDK r25b
+        run: |
+          # Download NDK r25b specifically as recommended by the compatibility note
+          echo "Downloading NDK r25b..."
+          curl -s "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip" -o ndk.zip
           
-          # Install NDK r25c (25.2.9519653) which is known to work with ffmpeg-kit 6.0
-          sdkmanager "ndk;25.2.9519653"
+          echo "Unzipping NDK..."
+          unzip -q -o ndk.zip -d .ndk
           
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+          # Set Evironment Variables exactly as the original workflow
+          NDK_PATH=$(pwd)/.ndk/android-ndk-r25b
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          
+          echo "NDK Setup complete at $NDK_PATH"
       - name: Build Custom FFmpeg
         run: |
+          # Ensure scripts are executable
           chmod +x android.sh
           
-          # We export the 16KB alignment flag here as a safety measure, 
-          # though it's also in our custom ffmpeg.sh
+          # Force 16KB alignment 
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
           # Build command
-          # --no-archive: Don't zip sources
-          # --lts: Use LTS support
-          # --disable-arm-v7a: Optional, if you ONLY want 64-bit (which is the future), but for compatibility keep it.
-          # Note: If 'cpu-features' still fails on arm-v7a, we might consider disabling 32-bit builds if your app is 64-bit only.
+          # Using options similar to original but with our minimal goal
+          # --no-archive: Don't zip sources (saves time)
+          # --lts: Use LTS support (often more stable)
+          # --disable-arm-v7a: If you want to speed it up and don't need 32-bit (optional)
           
           ./android.sh --no-archive --lts
-        env:
-          # Ensure env vars are passed
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
-          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
+          
       - name: Upload AAR
         uses: actions/upload-artifact@v4
         if: success()
