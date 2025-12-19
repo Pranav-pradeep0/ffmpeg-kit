@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 jobs:
   build-minimal-ffmpeg:
-    name: Build Minimal FFmpeg (NDK r25)
+    name: Build Minimal FFmpeg (Standard NDK r25c)
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -21,18 +21,25 @@ jobs:
           if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
             $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --uninstall "cmake;3.10.2.4988404" "cmake;3.18.1"
           fi
-      - name: Setup Android NDK r25 (Known Working Build)
+      - name: Setup Android NDK r25c (Standard)
         run: |
-          # Downloading the specific NDK r25 build known to work well with 16KB page size builds
-          curl -L -s "https://storage.googleapis.com/android-build/builds/aosp-ndk-release-r23-linux-linux/12186248/38c84da1ab0dd31ea40c857d2c9ee77450d9d71d76e60ac2ccd33d379babc534/android-ndk-12186248-linux-x86_64.zip?GoogleAccessId=gcs-sign%40android-builds-project.google.com.iam.gserviceaccount.com&Expires=1757434143&Signature=oK1FSeU9JpfoBkEqBZk%2FVmTH%2B1JJ09Dlv%2BsXblxpBTBq1kBA%2B42UPzbBpb%2BNy%2BIliEoWd2lO9Xbc92Lmzl1CiDyFwtzsxYE11nwUNNVWsjLvc0K0SO1%2F8j4p8b8eo5Zq5gc%2Bq7SamsrgelSUDSJfcYkDNR%2BE%2FyRpJgvtOqra%2FmEjw85pDrFMXFjZrSikYGjy%2Fl4E8TJRr%2BKh1BBkTEY5Oxvx3ia53LEzKE9bKKpFmFjZ9iXp%2BHh5ZSFPYZPrTMAeROSHlKARwvW35Bqgr%2FIyKHkSLKOk5%2FcbDud5iQwjuIB0l3MQTtkYr2TeDRh2BNzM82Z8MOwUfoncAI6nfj2%2Few%3D%3D" -o ndk.zip
+          # The signed URL from the other repo failed. 
+          # We revert to the official standard NDK r25c download.
+          # Since we are fixing the API level below, this restart should work.
+          
+          echo "Downloading Standard NDK r25c..."
+          curl -s "https://dl.google.com/android/repository/android-ndk-r25c-linux.zip" -o ndk.zip
+          
+          echo "Unzipping..."
           unzip -q -o ndk.zip -d .ndk
           
-          NDK_PATH=$(pwd)/.ndk/android-ndk-r25-beta4
-          # Note: The folder name inside zip might vary, we find it dynamically
+          # Dynamic path finding to be safe
           REAL_NDK_PATH=$(find .ndk -maxdepth 1 -type d -name "android-ndk*")
           
           echo "ANDROID_NDK_ROOT=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$PWD/$REAL_NDK_PATH" >> $GITHUB_ENV
+          
+          echo "NDK installed at: $PWD/$REAL_NDK_PATH"
       - name: Build Custom FFmpeg
         run: |
           chmod +x android.sh
@@ -40,23 +47,18 @@ jobs:
           # Force 16KB alignment
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           
-          # Force API Level 26 to match your HaptiPlayer minSdkVersion
-          # This avoids the "cpu-features" build error on old API levels (16)
+          # CRITICAL FIX:
+          # The previous failure (cpu-features) was because NDK r25 doesn't support API 16.
+          # We force API 26 here. This allows the standard NDK r25c to work.
           export API=26
           
           # Minimal Build Command
-          # We DO NOT use --full or --enable-gpl because we want the minimal build 
-          # defined in your custom 'ffmpeg.sh' script.
-          # --lts: Use LTS support
-          # --no-archive: Speed up build
           ./android.sh --no-archive --lts
           
       - name: Prepare Artifact
         run: |
-          # Find the generated AAR
           mkdir -p output
           find prebuilt -name "*.aar" -exec cp {} output/ \;
-          ls -R output/
       - name: Upload AAR
         uses: actions/upload-artifact@v4
         if: success()
