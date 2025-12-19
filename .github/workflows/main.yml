@@ -1,0 +1,44 @@
+name: Build Minimal FFmpeg Android
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake build-essential cmake git libtool \
+            pkg-config texinfo yasm nasm gettext autopoint gperf \
+            bison flex curl
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Install Specific NDK
+        run: |
+          sdkmanager "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+      - name: Build FFmpeg
+        run: |
+          # Make sure scripts are executable
+          chmod +x android.sh
+          
+          # Run the build script
+          # --no-archive: prevents creating a zip of source code
+          # --lts: uses a Long Term Support version logic if applicable
+          ./android.sh --no-archive
+        env:
+          # Ensure 16KB alignment is forced if not in script
+          LDFLAGS: "-Wl,-z,max-page-size=16384"
+      - name: Upload AAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-kit-minimal.aar
+          path: bundle-android-aar/*.aar
