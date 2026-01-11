@@ -21,6 +21,7 @@ export CFLAGS=$(get_cflags "${LIB_NAME}")
 export CXXFLAGS=$(get_cxxflags "${LIB_NAME}")
 export LDFLAGS=$(get_ldflags "${LIB_NAME}")
 export PKG_CONFIG_LIBDIR="${INSTALL_PKG_CONFIG_DIR}"
+
 # -----------------------------------------------------------------------------
 # CUSTOMIZATION: Ensure 16KB Page Alignment for Android 15
 # -----------------------------------------------------------------------------
@@ -28,6 +29,7 @@ if [[ "${ARCH}" == "arm64-v8a" || "${ARCH}" == "x86-64" ]]; then
     export LDFLAGS="${LDFLAGS} -Wl,-z,max-page-size=16384"
 fi
 # -----------------------------------------------------------------------------
+
 cd "${BASEDIR}"/src/"${LIB_NAME}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 # SET BUILD OPTIONS
 TARGET_CPU=""
@@ -52,7 +54,6 @@ arm64-v8a)
 x86)
   TARGET_CPU="i686"
   TARGET_ARCH="i686"
-  # asm disabled due to this ticket https://trac.ffmpeg.org/ticket/4928
   ASM_OPTIONS=" --disable-neon --disable-asm --disable-inline-asm"
   ;;
 x86-64)
@@ -61,98 +62,35 @@ x86-64)
   ASM_OPTIONS=" --disable-neon --enable-asm --enable-inline-asm"
   ;;
 esac
+
 CONFIGURE_POSTFIX=""
 HIGH_PRIORITY_INCLUDES=""
+
 # -----------------------------------------------------------------------------
 # CUSTOMIZATION: Minimal Configuration for Subtitles + Audio Recognition
 # -----------------------------------------------------------------------------
-# We ignore the standard loop for libraries and define our strict requirements.
-# Subtitle decoders, audio decoders for sync, and minimal muxers/demuxers
+# We use comma-separated groups here for maximum reliability and cleanliness.
 MINIMAL_FLAGS="
-    --disable-doc
-    --disable-everything
-    --disable-programs
-    --enable-avdevice
-    --disable-indevs
-    --disable-outdevs
-    --enable-swresample
-    --disable-postproc
-    --enable-avfilter
-    --disable-filters
-    --enable-swscale
-    --disable-network
+    --disable-doc --disable-everything --disable-programs
+    --enable-avdevice --enable-swresample --enable-avfilter --enable-swscale
+    --disable-network --disable-indevs --disable-outdevs --disable-postproc
     
-    --enable-protocol=file
-    --enable-protocol=pipe
+    --enable-protocol=file,pipe
+    --enable-ffmpeg --enable-ffprobe
     
-    --enable-ffmpeg
-    --enable-ffprobe
+    --enable-demuxer=matroska,mov,avi,srt,webvtt,ass
+    --enable-muxer=srt,webvtt,ass,adts,mov,wav,null
     
-    --enable-demuxer=matroska
-    --enable-demuxer=mov
-    --enable-demuxer=avi
-    --enable-demuxer=srt
-    --enable-demuxer=webvtt
-    --enable-demuxer=ass
+    --enable-decoder=srt,subrip,webvtt,ass,ssa,text,mov_text
+    --enable-decoder=aac,ac3,eac3,mp3,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,alac,dts,truehd,wmav1,wmav2
     
-    --enable-muxer=srt
-    --enable-muxer=webvtt
-    --enable-muxer=ass
-    --enable-muxer=adts
-    --enable-muxer=m4a
-    --enable-muxer=wav
-    --enable-muxer=null
+    --enable-encoder=srt,subrip,webvtt,ass,ssa,text
+    --enable-encoder=pcm_s16le,aac,ac3,flac,opus,vorbis
     
-    --enable-decoder=srt
-    --enable-decoder=subrip
-    --enable-decoder=webvtt
-    --enable-decoder=ass
-    --enable-decoder=ssa
-    --enable-decoder=text
-    --enable-decoder=mov_text
-    
-    --enable-decoder=aac
-    --enable-decoder=ac3
-    --enable-decoder=eac3
-    --enable-decoder=flac
-    --enable-decoder=vorbis
-    --enable-decoder=mp3
-    --enable-decoder=mp2
-    --enable-decoder=opus
-    --enable-decoder=pcm_s16le
-    --enable-decoder=pcm_s24le
-    --enable-decoder=pcm_s32le
-    --enable-decoder=alac
-    --enable-decoder=dts
-    --enable-decoder=truehd
-    --enable-decoder=wmav1
-    --enable-decoder=wmav2
-    
-    --enable-encoder=srt
-    --enable-encoder=subrip
-    --enable-encoder=webvtt
-    --enable-encoder=ass
-    --enable-encoder=ssa
-    --enable-encoder=text
-    
-    --enable-encoder=aac
-    --enable-encoder=ac3
-    --enable-encoder=flac
-    --enable-encoder=opus
-    --enable-encoder=vorbis
-    --enable-encoder=mp2
-    --enable-encoder=pcm_s16le
-    
-    --enable-parser=aac
-    --enable-parser=ac3
-    --enable-parser=flac
-    --enable-parser=vorbis
-    --enable-parser=mpegaudio
-    --enable-parser=opus
-    --enable-parser=dvdsub
-    --enable-parser=dvd_nav
+    --enable-parser=aac,ac3,flac,vorbis,mpegaudio,opus,dvdsub,dvd_nav
 "
-# Handle external libraries if strictly needed (e.g., zlib, iconv)
+
+# Handle external libraries if strictly needed
 for library in {0..61}; do
   if [[ ${ENABLED_LIBRARIES[$library]} -eq 1 ]]; then
     ENABLED_LIBRARY=$(get_library_name ${library})
@@ -171,24 +109,23 @@ for library in {0..61}; do
     esac
   fi
 done
-# SET ENABLE GPL FLAG WHEN REQUESTED
+
 if [ "$GPL_ENABLED" == "yes" ]; then
   CONFIGURE_POSTFIX+=" --enable-gpl"
 fi
+
 export LDFLAGS+=" -L${ANDROID_NDK_ROOT}/platforms/android-${API}/arch-${TOOLCHAIN_ARCH}/usr/lib"
-# LINKING WITH ANDROID LTS SUPPORT LIBRARY IS NECESSARY FOR API < 18
 if [[ -n ${FFMPEG_KIT_LTS_BUILD} ]] && [[ ${API} -lt 18 ]]; then
   export LDFLAGS+=" -Wl,--whole-archive ${BASEDIR}/android/ffmpeg-kit-android-lib/src/main/cpp/libandroidltssupport.a -Wl,--no-whole-archive"
 fi
-# ALWAYS BUILD SHARED LIBRARIES
+
 BUILD_LIBRARY_OPTIONS="--disable-static --enable-shared"
-# OPTIMIZE FOR SPEED INSTEAD OF SIZE
 if [[ -z ${FFMPEG_KIT_OPTIMIZED_FOR_SPEED} ]]; then
   SIZE_OPTIONS="--enable-small"
 else
   SIZE_OPTIONS=""
 fi
-# SET DEBUG OPTIONS
+
 if [[ -z ${FFMPEG_KIT_DEBUG} ]]; then
   if [[ -z ${NO_LINK_TIME_OPTIMIZATION} ]]; then
     DEBUG_OPTIONS="--disable-debug --enable-lto"
@@ -198,6 +135,7 @@ if [[ -z ${FFMPEG_KIT_DEBUG} ]]; then
 else
   DEBUG_OPTIONS="--enable-debug --disable-stripping"
 fi
+
 echo -n -e "\n${LIB_NAME}: "
 if [[ -z ${NO_WORKSPACE_CLEANUP_ffmpeg} ]]; then
   echo -e "INFO: Cleaning workspace for ${LIB_NAME}\n" 1>>"${BASEDIR}"/build.log 2>&1
@@ -206,9 +144,8 @@ if [[ -z ${NO_WORKSPACE_CLEANUP_ffmpeg} ]]; then
   rm -f "${BASEDIR}"/src/"${LIB_NAME}"/libavcodec/neon/*.o 1>>"${BASEDIR}"/build.log 2>&1
   git checkout "${BASEDIR}/src/ffmpeg/ffbuild" 1>>"${BASEDIR}"/build.log 2>&1
 fi
-# UPDATE BUILD FLAGS
+
 export CFLAGS="${HIGH_PRIORITY_INCLUDES} ${CFLAGS}"
-# USE HIGHER LIMITS FOR FFMPEG LINKING
 ulimit -n 2048 1>>"${BASEDIR}"/build.log 2>&1
 cd "${BASEDIR}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 git checkout android/ffmpeg-kit-android-lib/src/main/cpp/ffmpegkit.c 1>>"${BASEDIR}"/build.log 2>&1
@@ -216,8 +153,10 @@ cd "${BASEDIR}"/src/"${LIB_NAME}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 git checkout libavformat/file.c 1>>"${BASEDIR}"/build.log 2>&1
 git checkout libavformat/protocols.c 1>>"${BASEDIR}"/build.log 2>&1
 git checkout libavutil 1>>"${BASEDIR}"/build.log 2>&1
+
 # 1. Use thread local log levels
 ${SED_INLINE} 's/static int av_log_level/__thread int av_log_level/g' "${BASEDIR}"/src/"${LIB_NAME}"/libavutil/log.c 1>>"${BASEDIR}"/build.log 2>&1 || return 1
+
 # 2. Enable ffmpeg-kit protocols
 if [[ ${NO_FFMPEG_KIT_PROTOCOLS} == "1" ]]; then
   ${SED_INLINE} "s| av_set_saf|//av_set_saf|g" "${BASEDIR}"/android/ffmpeg-kit-android-lib/src/main/cpp/ffmpegkit.c 1>>"${BASEDIR}"/build.log 2>&1
@@ -230,6 +169,7 @@ else
   cat libavformat/protocols.c.tmp > libavformat/protocols.c
   echo -e "\nINFO: Enabled custom ffmpeg-kit protocols\n" 1>>"${BASEDIR}"/build.log 2>&1
 fi
+
 ###################################################################
 ./configure \
   --cross-prefix="${HOST}-" \
@@ -287,6 +227,7 @@ fi
   --disable-vdpau \
   ${MINIMAL_FLAGS} \
   ${CONFIGURE_POSTFIX} 1>>"${BASEDIR}"/build.log 2>&1
+
 if [[ $? -ne 0 ]]; then
   echo -e "failed\n\nSee build.log for details\n"
   exit 1
@@ -307,14 +248,17 @@ else
     echo -n -e "\n${LIB_NAME}: "
   fi
 fi
+
 if [ -d "${FFMPEG_LIBRARY_PATH}" ]; then
   rm -rf "${FFMPEG_LIBRARY_PATH}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 fi
 make install 1>>"${BASEDIR}"/build.log 2>&1
+
 if [[ $? -ne 0 ]]; then
   echo -e "failed\n\nSee build.log for details\n"
   exit 1
 fi
+
 # MANUALLY ADD REQUIRED HEADERS
 mkdir -p "${FFMPEG_LIBRARY_PATH}"/include/libavutil/x86 1>>"${BASEDIR}"/build.log 2>&1
 mkdir -p "${FFMPEG_LIBRARY_PATH}"/include/libavutil/arm 1>>"${BASEDIR}"/build.log 2>&1
