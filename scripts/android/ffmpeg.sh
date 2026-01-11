@@ -67,13 +67,13 @@ CONFIGURE_POSTFIX=""
 HIGH_PRIORITY_INCLUDES=""
 
 # -----------------------------------------------------------------------------
-# CUSTOMIZATION: Minimal Configuration for Subtitles + Audio Recognition
+# CUSTOMIZATION: Error-Proof Configuration for Subtitles + Audio Recognition
 # -----------------------------------------------------------------------------
-# We use comma-separated groups here for maximum reliability and cleanliness.
 MINIMAL_FLAGS="
     --disable-doc --disable-everything --disable-programs
     --enable-avdevice --enable-swresample --enable-avfilter --enable-swscale
     --disable-network --disable-indevs --disable-outdevs --disable-postproc
+    --disable-filters --enable-filter=aresample
     
     --enable-protocol=file,pipe
     --enable-ffmpeg --enable-ffprobe
@@ -90,7 +90,7 @@ MINIMAL_FLAGS="
     --enable-parser=aac,ac3,flac,vorbis,mpegaudio,opus,dvdsub,dvd_nav
 "
 
-# Handle external libraries if strictly needed
+# Handle external libraries if strictly needed (e.g., zlib, iconv)
 for library in {0..61}; do
   if [[ ${ENABLED_LIBRARIES[$library]} -eq 1 ]]; then
     ENABLED_LIBRARY=$(get_library_name ${library})
