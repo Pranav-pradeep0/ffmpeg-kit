@@ -112,9 +112,20 @@ MINIMAL_FLAGS="
     
     --enable-decoder=aac
     --enable-decoder=ac3
+    --enable-decoder=eac3
+    --enable-decoder=flac
+    --enable-decoder=vorbis
     --enable-decoder=mp3
+    --enable-decoder=mp2
     --enable-decoder=opus
     --enable-decoder=pcm_s16le
+    --enable-decoder=pcm_s24le
+    --enable-decoder=pcm_s32le
+    --enable-decoder=alac
+    --enable-decoder=dts
+    --enable-decoder=truehd
+    --enable-decoder=wmav1
+    --enable-decoder=wmav2
     
     --enable-encoder=srt
     --enable-encoder=subrip
@@ -124,8 +135,16 @@ MINIMAL_FLAGS="
     --enable-encoder=text
     
     --enable-encoder=aac
+    --enable-encoder=ac3
+    --enable-encoder=flac
+    --enable-encoder=opus
+    --enable-encoder=vorbis
+    --enable-encoder=mp2
     
     --enable-parser=aac
+    --enable-parser=ac3
+    --enable-parser=flac
+    --enable-parser=vorbis
     --enable-parser=mpegaudio
     --enable-parser=opus
     --enable-parser=dvdsub
