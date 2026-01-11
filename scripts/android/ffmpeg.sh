@@ -100,6 +100,7 @@ MINIMAL_FLAGS="
     --enable-muxer=ass
     --enable-muxer=adts
     --enable-muxer=m4a
+    --enable-muxer=wav
     --enable-muxer=null
     
     --enable-decoder=srt
@@ -140,6 +141,7 @@ MINIMAL_FLAGS="
     --enable-encoder=opus
     --enable-encoder=vorbis
     --enable-encoder=mp2
+    --enable-encoder=pcm_s16le
     
     --enable-parser=aac
     --enable-parser=ac3
