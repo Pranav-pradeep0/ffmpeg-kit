@@ -67,7 +67,7 @@ HIGH_PRIORITY_INCLUDES=""
 # CUSTOMIZATION: Minimal Configuration for Subtitles + Audio Recognition
 # -----------------------------------------------------------------------------
 # We ignore the standard loop for libraries and define our strict requirements.
-# Define minimal components
+# Subtitle decoders, audio decoders for sync, and minimal muxers/demuxers
 MINIMAL_FLAGS="
     --disable-doc
     --disable-everything
@@ -102,7 +102,6 @@ MINIMAL_FLAGS="
     --enable-muxer=m4a
     --enable-muxer=null
     
-    # Subtitle Decoders
     --enable-decoder=srt
     --enable-decoder=subrip
     --enable-decoder=webvtt
@@ -111,14 +110,12 @@ MINIMAL_FLAGS="
     --enable-decoder=text
     --enable-decoder=mov_text
     
-    # Audio Decoders (REQUIRED for Audio Sync)
     --enable-decoder=aac
     --enable-decoder=ac3
     --enable-decoder=mp3
     --enable-decoder=opus
     --enable-decoder=pcm_s16le
     
-    # Subtitle Encoders
     --enable-encoder=srt
     --enable-encoder=subrip
     --enable-encoder=webvtt
@@ -126,7 +123,6 @@ MINIMAL_FLAGS="
     --enable-encoder=ssa
     --enable-encoder=text
     
-    # Audio Encoder (REQUIRED for creating Audio Clips)
     --enable-encoder=aac
     
     --enable-parser=aac
