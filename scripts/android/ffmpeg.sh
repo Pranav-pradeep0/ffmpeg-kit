@@ -64,10 +64,9 @@ esac
 CONFIGURE_POSTFIX=""
 HIGH_PRIORITY_INCLUDES=""
 # -----------------------------------------------------------------------------
-# CUSTOMIZATION: Minimal Subtitle-Only Configuration
+# CUSTOMIZATION: Minimal Configuration for Subtitles + Audio Recognition
 # -----------------------------------------------------------------------------
 # We ignore the standard loop for libraries and define our strict requirements.
-# If you want to keep external libraries (like zlib), uncomment specific lines.
 # Define minimal components
 MINIMAL_FLAGS="
     --disable-doc
@@ -99,8 +98,11 @@ MINIMAL_FLAGS="
     --enable-muxer=srt
     --enable-muxer=webvtt
     --enable-muxer=ass
+    --enable-muxer=adts
+    --enable-muxer=m4a
     --enable-muxer=null
     
+    # Subtitle Decoders
     --enable-decoder=srt
     --enable-decoder=subrip
     --enable-decoder=webvtt
@@ -109,6 +111,14 @@ MINIMAL_FLAGS="
     --enable-decoder=text
     --enable-decoder=mov_text
     
+    # Audio Decoders (REQUIRED for Audio Sync)
+    --enable-decoder=aac
+    --enable-decoder=ac3
+    --enable-decoder=mp3
+    --enable-decoder=opus
+    --enable-decoder=pcm_s16le
+    
+    # Subtitle Encoders
     --enable-encoder=srt
     --enable-encoder=subrip
     --enable-encoder=webvtt
@@ -116,16 +126,19 @@ MINIMAL_FLAGS="
     --enable-encoder=ssa
     --enable-encoder=text
     
+    # Audio Encoder (REQUIRED for creating Audio Clips)
+    --enable-encoder=aac
+    
+    --enable-parser=aac
+    --enable-parser=mpegaudio
+    --enable-parser=opus
     --enable-parser=dvdsub
     --enable-parser=dvd_nav
 "
 # Handle external libraries if strictly needed (e.g., zlib, iconv)
-# Checking a few critical ones
 for library in {0..61}; do
   if [[ ${ENABLED_LIBRARIES[$library]} -eq 1 ]]; then
     ENABLED_LIBRARY=$(get_library_name ${library})
-    
-    # Only enable absolutely essential system libs if configured
     case ${ENABLED_LIBRARY} in
     android-zlib)
       CFLAGS+=" $(pkg-config --cflags zlib 2>>"${BASEDIR}"/build.log)"
@@ -160,7 +173,6 @@ else
 fi
 # SET DEBUG OPTIONS
 if [[ -z ${FFMPEG_KIT_DEBUG} ]]; then
-  # SET LTO FLAGS
   if [[ -z ${NO_LINK_TIME_OPTIMIZATION} ]]; then
     DEBUG_OPTIONS="--disable-debug --enable-lto"
   else
@@ -173,17 +185,14 @@ echo -n -e "\n${LIB_NAME}: "
 if [[ -z ${NO_WORKSPACE_CLEANUP_ffmpeg} ]]; then
   echo -e "INFO: Cleaning workspace for ${LIB_NAME}\n" 1>>"${BASEDIR}"/build.log 2>&1
   make distclean 2>/dev/null 1>/dev/null
-  # WORKAROUND TO MANUALLY DELETE UNCLEANED FILES
   rm -f "${BASEDIR}"/src/"${LIB_NAME}"/libavfilter/opencl/*.o 1>>"${BASEDIR}"/build.log 2>&1
   rm -f "${BASEDIR}"/src/"${LIB_NAME}"/libavcodec/neon/*.o 1>>"${BASEDIR}"/build.log 2>&1
-  # DELETE SHARED FRAMEWORK WORKAROUNDS
   git checkout "${BASEDIR}/src/ffmpeg/ffbuild" 1>>"${BASEDIR}"/build.log 2>&1
 fi
 # UPDATE BUILD FLAGS
 export CFLAGS="${HIGH_PRIORITY_INCLUDES} ${CFLAGS}"
 # USE HIGHER LIMITS FOR FFMPEG LINKING
 ulimit -n 2048 1>>"${BASEDIR}"/build.log 2>&1
-########################### CUSTOMIZATIONS #######################
 cd "${BASEDIR}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 git checkout android/ffmpeg-kit-android-lib/src/main/cpp/ffmpegkit.c 1>>"${BASEDIR}"/build.log 2>&1
 cd "${BASEDIR}"/src/"${LIB_NAME}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
@@ -281,7 +290,6 @@ else
     echo -n -e "\n${LIB_NAME}: "
   fi
 fi
-# DELETE THE PREVIOUS BUILD OF THE LIBRARY BEFORE INSTALLING
 if [ -d "${FFMPEG_LIBRARY_PATH}" ]; then
   rm -rf "${FFMPEG_LIBRARY_PATH}" 1>>"${BASEDIR}"/build.log 2>&1 || return 1
 fi
